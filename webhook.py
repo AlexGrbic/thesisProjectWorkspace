@@ -2,6 +2,7 @@ from flask import Flask
 from flask_assistant import Assistant, ask, tell
 import logging
 import nltk
+from sklearn.naive_bayes import MultinomialNB
 from nltk.corpus import names
 import random
 
@@ -17,21 +18,37 @@ random.seed(1234) # Set the random seed to allow replicability
 names = ([(name,'male') for name in m] + [(name,'female') for name in f])
 random.shuffle(names)
 
-#partition the set
-train_names = names[1500:]
-devtest_names = names[500:1500]
-test_names = names[:500]
+#Convert word to one-hot character
+def one_hot_character(c):
+    alphabet = 'abcdefghijklmnopqrstuvwxyz'
+    result = [0]*(len(alphabet)+1)
+    i = alphabet.find(c.lower())
+    if i >= 0:
+        result[i] = 1
+    else:
+        result[len(alphabet)] = 1 # character is out of the alphabet
+    return result
 
-#use suffixes up to 5 in size to train onto the dataset
-def gender_features5(word):
-    return {'suffix1': word[-1:],
-            'suffix2': word[-2:],
-            'suffix3': word[-3:],
-            'suffix4': word[-4:],
-            'suffix5': word[-5:]}
-train_set5=[(gender_features5(n),g) for (n,g) in train_names]
-devtest_set5=[(gender_features5(n),g) for (n,g) in devtest_names]
-classifier5=nltk.NaiveBayesClassifier.train(train_set5)
+def sk_gender_features5(word):
+    "Return the one-hot encoding of the last 5 characters"
+    features = []
+    for i in range(5):
+        if i <= len(word):
+            features += one_hot_character(word[-i])
+        else:
+            features += one_hot_character(' ')
+    return features
+
+#Partition the sets
+sk_train_set5=[(sk_gender_features5(n),g) for (n,g) in train_names]
+sk_devtest_set5=[(sk_gender_features5(n),g) for (n,g) in devtest_names]
+sk_classifier5=MultinomialNB()
+train5_X, train5_y = zip(*sk_train_set5)
+
+#Train the classifier
+sk_classifier5.fit(train5_X, train5_y)
+devtest5_X, devtest5_y = zip(*sk_devtest_set5)
+
 app = Flask(__name__)
 assist = Assistant(app, route='/')
 
@@ -45,7 +62,7 @@ def greet_and_start():
 def ask_for_color(name):
     print("THE NAME IS ")
     print(name)
-    gender = classifier5.classify(gender_features5(name))
+    gender = sk_classifier5.classify(gender_features5(name))
 
     if gender == 'male':
         gender_msg = 'Hi Mr {}!'.format(name)
