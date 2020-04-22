@@ -1,2 +1,0 @@
-Client Token: 17290dd96f494b448f8dfc58d19592dd
-Dev Token: 9894c76b1cfb417abca4be84e185c9df
